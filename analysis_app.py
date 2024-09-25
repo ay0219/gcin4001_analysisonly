@@ -21,8 +21,19 @@ uploaded_file = st.file_uploader("Choose a CSV file", type=["csv"])
 if uploaded_file is not None:
     # Read data
     try:
-        data = pd.read_csv(uploaded_file)
+        data_raw = pd.read_csv(uploaded_file)
         st.success("Data uploaded successfully!")
+
+        # Reshape the data to long format
+        data = data_raw.melt(
+            id_vars=['user_id', 'object'],
+            value_vars=['attempt_1', 'attempt_2', 'attempt_3'],
+            var_name='attempt',
+            value_name='selected_color_space'
+        )
+
+        # Map attempt names to numeric values
+        data['attempt'] = data['attempt'].str.extract('(\d+)').astype(int)
 
         # Check if required columns exist
         required_columns = ['selected_color_space', 'object']
@@ -66,7 +77,13 @@ if uploaded_file is not None:
         st.dataframe(color_percentages.to_frame(name='Percentage (%)'))
 
         fig2, ax2 = plt.subplots()
-        ax2.pie(color_counts.values, labels=color_counts.index, autopct='%1.1f%%', startangle=90, colors=sns.color_palette('Set2', len(color_counts)))
+        ax2.pie(
+            color_counts.values,
+            labels=color_counts.index,
+            autopct='%1.1f%%',
+            startangle=90,
+            colors=sns.color_palette('Set2', len(color_counts))
+        )
         ax2.axis('equal')
         ax2.set_title('Percentage of Selections by Color Format')
         st.pyplot(fig2)
@@ -83,7 +100,7 @@ if uploaded_file is not None:
 
         st.dataframe(object_color)
 
-        fig3, ax3 = plt.subplots(figsize=(10,8))
+        fig3, ax3 = plt.subplots(figsize=(10, 8))
         sns.heatmap(object_color, annot=True, fmt='d', cmap='Blues', ax=ax3)
         ax3.set_xlabel('Color Format')
         ax3.set_ylabel('Object')
@@ -95,12 +112,12 @@ if uploaded_file is not None:
             chi2 = chi2_contingency(confusion_matrix)[0]
             n = confusion_matrix.sum()
             phi2 = chi2 / n
-            r,k = confusion_matrix.shape
+            r, k = confusion_matrix.shape
             with np.errstate(divide='ignore', invalid='ignore'):
-                phi2corr = max(0, phi2 - ((k-1)*(r-1))/(n-1))
-                rcorr = r - ((r-1)**2)/(n-1)
-                kcorr = k - ((k-1)**2)/(n-1)
-                v = np.sqrt(phi2corr / min((kcorr-1), (rcorr-1)))
+                phi2corr = max(0, phi2 - ((k - 1) * (r - 1)) / (n - 1))
+                rcorr = r - ((r - 1) ** 2) / (n - 1)
+                kcorr = k - ((k - 1) ** 2) / (n - 1)
+                v = np.sqrt(phi2corr / min((kcorr - 1), (rcorr - 1)))
                 if np.isnan(v):
                     return 0.0
                 else:
@@ -167,25 +184,25 @@ if uploaded_file is not None:
         This analysis checks whether participants consistently selected the same color format for the same object across different repeats. A higher consistency rate suggests strong preferences or perceptions regarding color formats for specific objects.
         """)
 
-        if 'user_id' in data.columns and 'repeat' in data.columns:
-            user_objects = data.groupby(['user_id', 'object'])['selected_color_space'].agg(list).reset_index()
-            user_objects['consistent'] = user_objects['selected_color_space'].apply(lambda x: len(set(x)) == 1)
-            st.subheader("Participant Consistency Data")
-            st.dataframe(user_objects)
+        # Now that data has 'user_id', 'object', 'attempt', 'selected_color_space'
+        # Group by 'user_id', 'object' and get list of selected color spaces
+        user_objects = data.groupby(['user_id', 'object'])['selected_color_space'].agg(list).reset_index()
+        user_objects['consistent'] = user_objects['selected_color_space'].apply(lambda x: len(set(x)) == 1)
+        st.subheader("Participant Consistency Data")
+        st.dataframe(user_objects)
 
-            consistency_rate = user_objects['consistent'].mean() * 100
-            st.write(f"Overall Consistency Rate: {consistency_rate:.2f}%")
+        consistency_rate = user_objects['consistent'].mean() * 100
+        st.write(f"Overall Consistency Rate: {consistency_rate:.2f}%")
 
-            # Plotting consistency
-            st.subheader("Consistency Rate Visualization")
-            fig4, ax4 = plt.subplots()
-            labels = ['Consistent', 'Inconsistent']
-            sizes = [user_objects['consistent'].sum(), len(user_objects) - user_objects['consistent'].sum()]
-            ax4.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=['#66b3ff', '#ff9999'])
-            ax4.axis('equal')
-            st.pyplot(fig4)
-        else:
-            st.write("Participant consistency analysis requires 'user_id' and 'repeat' columns in the data.")
+        # Plotting consistency
+        st.subheader("Consistency Rate Visualization")
+        fig4, ax4 = plt.subplots()
+        labels = ['Consistent', 'Inconsistent']
+        sizes = [user_objects['consistent'].sum(), len(user_objects) - user_objects['consistent'].sum()]
+        ax4.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=['#66b3ff', '#ff9999'])
+        ax4.axis('equal')
+        st.pyplot(fig4)
+
     except Exception as e:
         st.error(f"An error occurred while processing the data: {e}")
         st.stop()
